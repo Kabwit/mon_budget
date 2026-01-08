@@ -2,6 +2,7 @@ let db;
 const DB_NAME = 'BudgetRDC_VFinal_Perfect';
 const STORE_NAME = 'txs';
 let userRate = 2800, userSalary = 0, myChart;
+let editingId = null; // Pour savoir si on modifie une transaction
 
 const RULES = {
     'Loyer': 'Needs', 'Alimentation': 'Needs', 'Transport': 'Needs', 'Santé': 'Needs', 'Eau/Elec': 'Needs',
@@ -19,10 +20,12 @@ window.onload = () => {
     initAuth();
 };
 
+// --- LOGIQUE DE CONNEXION (CORRIGÉE) ---
 function initAuth() {
     const name = localStorage.getItem('user_name');
-    if (!name) document.getElementById('onboarding-screen').classList.remove('hidden');
-    else {
+    if (!name) {
+        document.getElementById('onboarding-screen').classList.remove('hidden');
+    } else {
         document.getElementById('onboarding-screen').classList.add('hidden');
         ['main-header', 'main-nav'].forEach(id => document.getElementById(id).classList.remove('hidden'));
         document.getElementById('welcome-user').textContent = `Bonjour, ${name} !`;
@@ -31,13 +34,23 @@ function initAuth() {
     }
 }
 
+// CETTE PARTIE MANQUAIT DANS TON CODE :
+document.getElementById('onboarding-form').onsubmit = (e) => {
+    e.preventDefault();
+    const nameInput = document.getElementById('user-name-input').value.trim();
+    if (nameInput) {
+        localStorage.setItem('user_name', nameInput);
+        initAuth(); // Relance la vérification pour afficher l'app
+    }
+};
+
 function openDB() {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = (e) => e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
     req.onsuccess = (e) => { db = e.target.result; loadAll(); };
 }
 
-// --- GESTION DE LA BASCULE (FIX) ---
+// --- GESTION DE LA BASCULE ---
 const btnDepense = document.getElementById('btn-depense');
 const btnRevenu = document.getElementById('btn-revenu');
 const typeInput = document.getElementById('transaction-type');
@@ -45,7 +58,6 @@ const typeInput = document.getElementById('transaction-type');
 btnDepense.onclick = () => {
     typeInput.value = 'Dépense';
     updateCats('Dépense');
-    // Visuel
     btnDepense.classList.add('bg-white', 'text-red-600', 'shadow-sm');
     btnDepense.classList.remove('text-gray-400');
     btnRevenu.classList.remove('bg-white', 'text-emerald-600', 'shadow-sm');
@@ -55,7 +67,6 @@ btnDepense.onclick = () => {
 btnRevenu.onclick = () => {
     typeInput.value = 'Revenu';
     updateCats('Revenu');
-    // Visuel
     btnRevenu.classList.add('bg-white', 'text-emerald-600', 'shadow-sm');
     btnRevenu.classList.remove('text-gray-400');
     btnDepense.classList.remove('bg-white', 'text-red-600', 'shadow-sm');
@@ -116,6 +127,7 @@ function updateUI(u, c, s) {
     });
 }
 
+// --- RENDU AVEC BOUTONS SUPPRIMER/MODIFIER ---
 function render(t) {
     const isNeg = t.amount < 0;
     const div = document.createElement('div');
@@ -130,11 +142,23 @@ function render(t) {
                 <p class="text-[8px] text-gray-400 uppercase font-black">${t.category}</p>
             </div>
         </div>
-        <div class="text-right">
-            <p class="font-black ${isNeg?'text-red-500':'text-emerald-600'} text-[11px]">${t.currency==='USD'?'$':''} ${Math.abs(t.amount).toLocaleString('fr-FR')} ${t.currency==='CDF'?'FC':''}</p>
+        <div class="flex items-center space-x-3">
+            <div class="text-right">
+                <p class="font-black ${isNeg?'text-red-500':'text-emerald-600'} text-[11px]">${t.currency==='USD'?'$':''} ${Math.abs(t.amount).toLocaleString('fr-FR')} ${t.currency==='CDF'?'FC':''}</p>
+            </div>
+            <button onclick="deleteTx(${t.id})" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash-alt text-xs"></i></button>
         </div>
     `;
     document.getElementById('transactions-list').prepend(div);
+}
+
+// --- FONCTION SUPPRIMER ---
+function deleteTx(id) {
+    if(confirm("Supprimer cette opération ?")) {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => loadAll();
+    }
 }
 
 function showPage(id, btn) {
@@ -144,7 +168,7 @@ function showPage(id, btn) {
     if(btn && btn.tagName === "BUTTON") btn.classList.replace('text-gray-400', 'text-indigo-600');
 }
 
-// --- ACTIONS ---
+// --- ACTIONS FORMULAIRE ---
 document.getElementById('transaction-form').onsubmit = (e) => {
     e.preventDefault();
     const t = { 
@@ -158,7 +182,7 @@ document.getElementById('transaction-form').onsubmit = (e) => {
     tx.objectStore(STORE_NAME).add(t);
     tx.oncomplete = () => { 
         document.getElementById('transaction-form').reset(); 
-        btnDepense.click(); // Reset visuel sur dépense
+        btnDepense.click(); 
         showPage('page-dashboard'); 
         loadAll(); 
     };
@@ -199,9 +223,11 @@ function drawChart(txs) {
         data[t.category] = (data[t.category] || 0) + v; 
     });
     if(myChart) myChart.destroy();
-    myChart = new Chart(document.getElementById('budgetChart'), { 
-        type: 'doughnut', 
-        data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#4f46e5', '#a855f7', '#10b981', '#f59e0b', '#ef4444'], borderWidth: 0 }] }, 
-        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } }, cutout: '75%' } 
-    });
+    if(Object.keys(data).length > 0) {
+        myChart = new Chart(document.getElementById('budgetChart'), { 
+            type: 'doughnut', 
+            data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#4f46e5', '#a855f7', '#10b981', '#f59e0b', '#ef4444'], borderWidth: 0 }] }, 
+            options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } }, cutout: '75%' } 
+        });
+    }
 }
