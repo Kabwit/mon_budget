@@ -1,7 +1,7 @@
 let db;
 const DB_NAME = 'BudgetRDC_VFinal_Perfect';
 const STORE_NAME = 'txs';
-let userRate = 2800, userSalary = 0, myChart;
+let userRate = 2200, userSalary = 0, myChart;
 let editingId = null; // Pour savoir si on modifie une transaction
 
 const RULES = {
@@ -231,3 +231,4 @@ function drawChart(txs) {
         });
     }
 }
+
