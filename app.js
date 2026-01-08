@@ -1,8 +1,10 @@
+// AFFICHE CE MESSAGE POUR VÉRIFIER LA MISE À JOUR
+alert("Application chargée avec succès !");
+
 let db;
 const DB_NAME = 'BudgetRDC_VFinal_Perfect';
 const STORE_NAME = 'txs';
-let userRate = 2200, userSalary = 0, myChart;
-let editingId = null; // Pour savoir si on modifie une transaction
+let userRate = 2800, userSalary = 0, myChart;
 
 const RULES = {
     'Loyer': 'Needs', 'Alimentation': 'Needs', 'Transport': 'Needs', 'Santé': 'Needs', 'Eau/Elec': 'Needs',
@@ -13,42 +15,58 @@ const RULES = {
 window.onload = () => {
     userRate = parseFloat(localStorage.getItem('rate')) || 2800;
     userSalary = parseFloat(localStorage.getItem('salary')) || 0;
-    document.getElementById('input-rate').value = userRate;
-    document.getElementById('input-salary').value = userSalary;
-    document.getElementById('date').valueAsDate = new Date();
+    
+    if(document.getElementById('input-rate')) document.getElementById('input-rate').value = userRate;
+    if(document.getElementById('input-salary')) document.getElementById('input-salary').value = userSalary;
+    if(document.getElementById('date')) document.getElementById('date').valueAsDate = new Date();
+    
     updateCats('Dépense');
     initAuth();
 };
 
-// --- LOGIQUE DE CONNEXION (CORRIGÉE) ---
 function initAuth() {
     const name = localStorage.getItem('user_name');
+    const screen = document.getElementById('onboarding-screen');
+    
     if (!name) {
-        document.getElementById('onboarding-screen').classList.remove('hidden');
+        screen.classList.remove('hidden');
     } else {
-        document.getElementById('onboarding-screen').classList.add('hidden');
-        ['main-header', 'main-nav'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+        screen.classList.add('hidden');
+        document.getElementById('main-header').classList.remove('hidden');
+        document.getElementById('main-nav').classList.remove('hidden');
         document.getElementById('welcome-user').textContent = `Bonjour, ${name} !`;
         document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
         openDB();
     }
 }
 
-// CETTE PARTIE MANQUAIT DANS TON CODE :
-document.getElementById('onboarding-form').onsubmit = (e) => {
-    e.preventDefault();
-    const nameInput = document.getElementById('user-name-input').value.trim();
-    if (nameInput) {
-        localStorage.setItem('user_name', nameInput);
-        initAuth(); // Relance la vérification pour afficher l'app
+// GESTION DU BOUTON COMMENCER
+document.addEventListener('submit', function(e) {
+    if(e.target && e.target.id === 'onboarding-form'){
+        e.preventDefault();
+        const nameInput = document.getElementById('user-name-input').value.trim();
+        if (nameInput) {
+            localStorage.setItem('user_name', nameInput);
+            initAuth();
+        } else {
+            alert("Merci d'entrer un prénom.");
+        }
     }
-};
+    
+    // GESTION DU FORMULAIRE DE TRANSACTION
+    if(e.target && e.target.id === 'transaction-form'){
+        e.preventDefault();
+        saveTransaction();
+    }
+});
 
 function openDB() {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = (e) => e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
     req.onsuccess = (e) => { db = e.target.result; loadAll(); };
 }
+
+// ... RESTE DU CODE (loadAll, updateUI, render, etc. que tu as déjà)
 
 // --- GESTION DE LA BASCULE ---
 const btnDepense = document.getElementById('btn-depense');
@@ -231,4 +249,5 @@ function drawChart(txs) {
         });
     }
 }
+
 
